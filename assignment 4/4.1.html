@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Integration Comparison</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #comparison-table {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .project-table {
+            width: 45%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .highlight-difference {
+            background-color: yellow;
+        }
+
+        #differences {
+            margin-top: 20px;
+        }
+
+        #report {
+            margin-top: 20px;
+            color: green;
+        }
+
+        .add-row-form {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <label for="project-x-file">Load Project X JSON:</label>
+        <input type="file" id="project-x-file" accept=".json">
+        <br>
+        <label for="project-y-file">Load Project Y JSON:</label>
+        <input type="file" id="project-y-file" accept=".json">
+        <br>
+        <button onclick="loadData()">Load Data</button>
+    </div>
+    <div id="comparison-table">
+        <div class="project-table" id="project-x">
+            <h2 id="project-x-title">Project X</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Project</th>
+                        <th>Data Consumed</th>
+                        <th>Data Received</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="project-x-body">
+                </tbody>
+            </table>
+            <div class="add-row-form" id="add-row-form-x">
+                <input type="text" id="new-project-name-x" placeholder="Project Name">
+                <input type="text" id="new-data-consumed-x" placeholder="Data Consumed (comma separated)">
+                <input type="text" id="new-data-received-x" placeholder="Data Received (comma separated)">
+                <button onclick="addRow('project-x-body', 'new-project-name-x', 'new-data-consumed-x', 'new-data-received-x')">Add</button>
+            </div>
+            <button onclick="toggleAddForm('add-row-form-x')">Show Add Row Form</button>
+        </div>
+        <div class="project-table" id="project-y">
+            <h2 id="project-y-title">Project Y</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Project</th>
+                        <th>Data Consumed</th>
+                        <th>Data Received</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="project-y-body">
+                </tbody>
+            </table>
+            <div class="add-row-form" id="add-row-form-y">
+                <input type="text" id="new-project-name-y" placeholder="Project Name">
+                <input type="text" id="new-data-consumed-y" placeholder="Data Consumed (comma separated)">
+                <input type="text" id="new-data-received-y" placeholder="Data Received (comma separated)">
+                <button onclick="addRow('project-y-body', 'new-project-name-y', 'new-data-consumed-y', 'new-data-received-y')">Add</button>
+            </div>
+            <button onclick="toggleAddForm('add-row-form-y')">Show Add Row Form</button>
+        </div>
+    </div>
+    <button onclick="compareData()">Compare</button>
+    <div id="differences"></div>
+    <button onclick="saveData()">Save</button>
+    <div id="report"></div>
+
+    <script>
+        let appXData = {};
+        let appYData = {};
+        let appXFilename = '';
+        let appYFilename = '';
+
+        function loadData() {
+            const projectXFile = document.getElementById('project-x-file').files[0];
+            const projectYFile = document.getElementById('project-y-file').files[0];
+
+            if (projectXFile && projectYFile) {
+                appXFilename = projectXFile.name.split('.')[0]; // Get the file name without extension
+                appYFilename = projectYFile.name.split('.')[0]; // Get the file name without extension
+                document.getElementById('project-x-title').textContent = appXFilename;
+                document.getElementById('project-y-title').textContent = appYFilename;
+
+                const readerX = new FileReader();
+                const readerY = new FileReader();
+
+                readerX.onload = function(event) {
+                    try {
+                        appXData = JSON.parse(event.target.result);
+                        displayData('project-x-body', appXData);
+                    } catch (e) {
+                        console.error("Error parsing Project X JSON:", e);
+                    }
+                };
+
+                readerY.onload = function(event) {
+                    try {
+                        appYData = JSON.parse(event.target.result);
+                        displayData('project-y-body', appYData);
+                    } catch (e) {
+                        console.error("Error parsing Project Y JSON:", e);
+                    }
+                };
+
+                readerX.readAsText(projectXFile);
+                readerY.readAsText(projectYFile);
+            } else {
+                alert('Please select both Project X and Project Y JSON files.');
+            }
+        }
+
+        function displayData(elementId, data) {
+            const tbody = document.getElementById(elementId);
+            tbody.innerHTML = '';
+            Object.keys(data).forEach(key => {
+                const tr = document.createElement('tr');
+                const projectCell = document.createElement('td');
+                const dataConsumedCell = document.createElement('td');
+                const dataReceivedCell = document.createElement('td');
+                const actionsCell = document.createElement('td');
+
+                projectCell.textContent = key;
+                dataConsumedCell.textContent = Object.values(data[key].dataConsumed).filter(Boolean).join(', ') || 'N/A';
+                dataReceivedCell.textContent = Object.values(data[key].dataReceived).filter(Boolean).join(', ') || 'N/A';
+
+                const modifyButton = document.createElement('button');
+                modifyButton.textContent = 'Modify';
+                modifyButton.onclick = () => modifyData(elementId, key, data[key]);
+                actionsCell.appendChild(modifyButton);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = () => deleteRow(elementId, key);
+                actionsCell.appendChild(deleteButton);
+
+                tr.appendChild(projectCell);
+                tr.appendChild(dataConsumedCell);
+                tr.appendChild(dataReceivedCell);
+                tr.appendChild(actionsCell);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function addRow(elementId, projectNameId, dataConsumedId, dataReceivedId) {
+            const projectName = document.getElementById(projectNameId).value.trim();
+            const dataConsumed = document.getElementById(dataConsumedId).value.trim();
+            const dataReceived = document.getElementById(dataReceivedId).value.trim();
+
+            if (projectName !== '' && dataConsumed !== '' && dataReceived !== '') {
+                const newRow = {
+                    dataConsumed: {},
+                    dataReceived: {}
+                };
+
+                dataConsumed.split(',').forEach((item, index) => {
+                    newRow.dataConsumed[`dataConsumed ${index + 1}`] = item.trim();
+                });
+
+                dataReceived.split(',').forEach((item, index) => {
+                    newRow.dataReceived[`dataReceived ${index + 1}`] = item.trim();
+                });
+
+                // Check if the project name already exists
+                if (!appXData[projectName]) {
+                    appXData[projectName] = {...newRow};
+                } else {
+                    // Append new data to existing project
+                    Object.keys(newRow.dataConsumed).forEach((key, index) => {
+                        appXData[projectName].dataConsumed[key] = newRow.dataConsumed[key];
+                    });
+                    Object.keys(newRow.dataReceived).forEach((key, index) => {
+                        appXData[projectName].dataReceived[key] = newRow.dataReceived[key];
+                    });
+                }
+
+                // Display updated data
+                displayData(elementId, appXData);
+            } else {
+                alert('Please fill in all fields.');
+            }
+        }
+
+        function modifyData(elementId, projectName, projectData) {
+            let newDataConsumed = '';
+            let newDataReceived = '';
+
+            // Prompt to modify data if there are existing entries
+            if (Object.keys(projectData.dataConsumed).length > 0) {
+                newDataConsumed = prompt("Enter new Data Consumed (comma separated):", Object.values(projectData.dataConsumed).join(', '));
+            } else {
+                newDataConsumed = prompt("Enter Data Consumed (comma separated):");
+            }
+
+            if (Object.keys(projectData.dataReceived).length > 0) {
+                newDataReceived = prompt("Enter new Data Received (comma separated):", Object.values(projectData.dataReceived).join(', '));
+            } else {
+                newDataReceived = prompt("Enter Data Received (comma separated):");
+            }
+
+            if (newDataConsumed !== null) {
+                const newDataConsumedArr = newDataConsumed.split(',').map(item => item.trim());
+                projectData.dataConsumed = {};
+                newDataConsumedArr.forEach((item, index) => {
+                    projectData.dataConsumed[`dataConsumed ${index + 1}`] = item;
+                });
+            }
+
+            if (newDataReceived !== null) {
+                const newDataReceivedArr = newDataReceived.split(',').map(item => item.trim());
+                projectData.dataReceived = {};
+                newDataReceivedArr.forEach((item, index) => {
+                    projectData.dataReceived[`dataReceived ${index + 1}`] = item;
+                });
+            }
+
+            // Display updated data
+            displayData(elementId, appXData);
+        }
+
+        function deleteRow(elementId, projectName) {
+            delete appXData[projectName];
+            delete appYData[projectName];
+
+            // Display updated data
+            displayData(elementId, appXData);
+        }
+
+        function compareData() {
+            const differences = compare(appXData, appYData);
+            highlightDifferences(differences);
+            generateDifferenceReport(differences);
+        }
+
+        function compare(appXData, appYData) {
+            const differences = [];
+            Object.keys(appXData).forEach(key => {
+                if (appYData[key]) {
+                    const appXConsumed = Object.values(appXData[key].dataConsumed).join(', ');
+                    const appXReceived = Object.values(appXData[key].dataReceived).join(', ');
+                    const appYConsumed = Object.values(appYData[key].dataConsumed).join(', ');
+                    const appYReceived = Object.values(appYData[key].dataReceived).join(', ');
+
+                    if (appXConsumed !== appYReceived || appXReceived !== appYConsumed) {
+                        differences.push({
+                            key: key,
+                            app_x_value: { consumed: appXConsumed, received: appXReceived },
+                            app_y_value: { consumed: appYConsumed, received: appYReceived }
+                        });
+                    }
+                }
+            });
+            return differences;
+        }
+
+        function highlightDifferences(differences) {
+            const tbodyX = document.getElementById('project-x-body');
+            const tbodyY = document.getElementById('project-y-body');
+
+            Array.from(tbodyX.children).forEach(tr => {
+                tr.children[1].classList.remove('highlight-difference');
+                tr.children[2].classList.remove('highlight-difference');
+            });
+
+            Array.from(tbodyY.children).forEach(tr => {
+                tr.children[1].classList.remove('highlight-difference');
+                tr.children[2].classList.remove('highlight-difference');
+            });
+
+            differences.forEach(diff => {
+                Array.from(tbodyX.children).forEach(tr => {
+                    if (tr.children[0].textContent === diff.key) {
+                        if (diff.app_x_value.consumed !== diff.app_y_value.received) {
+                            tr.children[1].classList.add('highlight-difference');
+                        }
+                        if (diff.app_x_value.received !== diff.app_y_value.consumed) {
+                            tr.children[2].classList.add('highlight-difference');
+                        }
+                    }
+                });
+                Array.from(tbodyY.children).forEach(tr => {
+                    if (tr.children[0].textContent === diff.key) {
+                        if (diff.app_y_value.consumed !== diff.app_x_value.received) {
+                            tr.children[1].classList.add('highlight-difference');
+                        }
+                        if (diff.app_y_value.received !== diff.app_x_value.consumed) {
+                            tr.children[2].classList.add('highlight-difference');
+                        }
+                    }
+                });
+            });
+
+            const differencesDiv = document.getElementById('differences');
+            differencesDiv.innerHTML = '<h3>Differences</h3>';
+            differences.forEach(diff => {
+                differencesDiv.innerHTML += `<p>${diff.key}: Project X (Consumed: ${diff.app_x_value.consumed}, Received: ${diff.app_x_value.received}) vs Project Y (Consumed: ${diff.app_y_value.consumed}, Received: ${diff.app_y_value.received})</p>`;
+            });
+        }
+
+        function generateDifferenceReport(differences) {
+            const reportData = differences.map(diff => ({
+                project: diff.key,
+                projectX: { consumed: diff.app_x_value.consumed, received: diff.app_x_value.received },
+                projectY: { consumed: diff.app_y_value.consumed, received: diff.app_y_value.received }
+            }));
+
+            const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'differences_report.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function saveData() {
+            const data = {
+                projectX: appXData,
+                projectY: appYData
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'comparison_results.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            document.getElementById('report').textContent = 'Data saved successfully!';
+        }
+
+        function toggleAddForm(formId) {
+            const form = document.getElementById(formId);
+            form.classList.toggle('add-row-form');
+        }
+    </script>
+</body>
+</html>
